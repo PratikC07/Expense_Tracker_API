@@ -1,5 +1,6 @@
 import AuthController from './authController.js';
 import ExpenseController from './expenseController.js';
-import categoryController from './categoryController.js';
+import CategoryController from './categoryController.js';
+import AnalyticsController from './analyticsController.js';
 
-export { AuthController, ExpenseController, categoryController };
+export { AuthController, ExpenseController, CategoryController, AnalyticsController };

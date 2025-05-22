@@ -1,132 +1,72 @@
+import { StatusCodes } from 'http-status-codes';
+import { authService } from '../services/index.js';
+import { logger } from '../utils/logger.js';
 
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { User } from "../models/index.js";
-
-
-const generateToken = (userId, email)=>{
-    return jwt.sign({userId, email}, process.env.JWT_SECRET, {expiresIn: "3d"});
-}
-
-const signup = async(req, res)=>{
+const signup = async(req, res) => {
     try {
-        const {name, email, password} = req.body;
+    const { name, email, password } = req.body;
 
-        if(!name || !email || !password){
-            return res.status(400).json({
-                success: false,
-                message: "All fields are required",
-            })
-        }
+    const result = await authService.register({ name, email, password });
 
-        const user = await User.findOne({email});
-
-        if(user){
-            return res.status(400).json({
-                success: false,
-                message: "User already exists",
-            })
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const newUser = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-        });
-
-        if(newUser){
-            const token = generateToken(newUser._id, newUser.email);
-            
-            res.cookie("token", token, {
+    res.cookie('token', result.token, {
                 httpOnly: true,
-                secure: process.env.NODE_ENV !== "development",
-                maxAge: 3 * 24 * 60 * 60 * 1000,
-                sameSite: "strict",
-            })
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      sameSite: 'strict',
+    });
 
-            res.status(201).json({
+    res.status(StatusCodes.CREATED).json({
                 success: true,
-                message: "User created successfully",
-                user: {
-                    _id: newUser._id,
-                    name: newUser.name,
-                    email: newUser.email,
-                },
-            })
-        }
+      message: 'User registered successfully',
+      user: result.user,
+      token: result.token,
+    });
             
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.message,
-        })
-    }
-}
-
-const login = async(req, res)=>{
-    try {
-        const {email, password} = req.body;
-
-        if(!email || !password){
-            return res.status(400).json({
+    logger.error('Error in signup controller:', error);
+    const statusCode = error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
+    
+    res.status(statusCode).json({
                 success: false,
-                message: "All fields are required",
-            })
-        }
+      message: error.message || 'Error registering user',
+    });
+  }
+};
 
-        const user = await User.findOne({email});
+const login = async(req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const result = await authService.login(email, password);
 
-        if(!user){
-            return res.status(400).json({
-                success: false,
-                message: "User does not exist",
-            })
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-
-        if(!isPasswordValid){
-            return res.status(400).json({
-                success: false,
-                message: "Invalid password",
-            });
-        }
-
-        const token = generateToken(user._id, user.email);
-
-        res.cookie("token", token, {
+    res.cookie('token', result.token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV !== "development",
-            maxAge: 3 * 24 * 60 * 60 * 1000,
-            sameSite: "strict",
-        })
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      sameSite: 'strict',
+    });
 
-        res.status(200).json({
+    res.status(StatusCodes.OK).json({
             success: true,
-            message: "User logged in successfully",
-            user: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-            },
-        })
-
-        
+      message: 'User logged in successfully',
+      user: result.user,
+      token: result.token,
+    });
             
     } catch (error) {
-        res.status(500).json({
+    logger.error('Error in login controller:', error);
+    const statusCode = error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
+    
+    res.status(statusCode).json({
             success: false,
-            error: error.message,
-        })
+      message: error.message || 'Error logging in',
+    });
     }
-}
-
+};
 
 const AuthController = {
     signup,
     login,
-}
+};
 
 export default AuthController;
